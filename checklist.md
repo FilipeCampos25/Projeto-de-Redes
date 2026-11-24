@@ -43,8 +43,8 @@ trabalho-redes/
 | Issue | Atividade | Prioridade | Dependências | Responsável | Concluída |
 |---|---|---|---|---|---|
 | #01 | Estruturar o repositório | Alta | Nenhuma | A definir | ☐ (validação local concluída) |
-| #02 | Configurar as máquinas e a rede | Crítica | #01 | A definir | ☐ |
-| #03 | Desenvolver servidor HTTP em Python | Crítica | #01, #02 | A definir | ☐ |
+| #02 | Configurar as máquinas e a rede | Crítica | #01 | A definir | ☐ (documentação pronta; laboratório pendente) |
+| #03 | Desenvolver servidor HTTP em Python | Crítica | #01, #02 | A definir | ☐ (código e testes locais prontos; laboratório pendente) |
 | #04 | Desenvolver servidor DNS UDP em Python | Crítica | #01, #02 | A definir | ☐ |
 | #05 | Desenvolver o cliente de testes Python | Crítica | #03, #04 | A definir | ☐ |
 | #06 | Preparar captura de pacotes ao vivo | Crítica | #02, #03, #04 | A definir | ☐ |
@@ -109,6 +109,15 @@ A sintaxe de `tools/netprobe.py` foi validada com `compile(..., 'exec')`, sem ex
 
 **Objetivo:** Garantir que A e B troquem pacotes reais, identificáveis pelo Wireshark.
 
+**Preparação documental — 23/11/2026**
+
+- [x] Criar [manual reproduzível Windows/Linux](docs/preparacao-ambiente.md) com identificação de IPs, conectividade, portas, firewall, Wireshark e troubleshooting.
+- [x] Complementar a [topologia](docs/topologia.md) com campos pendentes por máquina, interfaces, evidências, data e responsável.
+- [x] Registrar diagnóstico local de leitura e suas limitações, separado das máquinas reais.
+- [x] Disponibilizar matriz de validação e link no README.
+
+**Status da Issue #02:** preparação documental concluída; configuração e validação nas máquinas do laboratório pendentes. Nenhum teste A/B foi executado. O ambiente Codex não foi atribuído a A ou B. Nenhuma regra de firewall, serviço ou captura foi iniciada; NetProbe não foi executado nem alterado. A validação funcional de TCP/80 e UDP/53 depende dos servidores das Issues #03/#04; confirmação completa do tráfego depende também de #05/#06. Responsável pela preparação: Codex; responsável pela validação real: a definir.
+
 **Passo a passo**
 - [ ] Definir a máquina A como cliente e a máquina B como servidor; usar duas máquinas na mesma LAN ou VMs com rede adequada.
 - [ ] Anotar IPv4 e adaptador de cada máquina com `ipconfig` no Windows (ou `ip addr` no Linux).
@@ -137,21 +146,26 @@ A sintaxe de `tools/netprobe.py` foi validada com `compile(..., 'exec')`, sem ex
 **Objetivo:** Criar tráfego HTTP não criptografado na porta TCP/80, com GET, POST e respostas observáveis.
 
 **Passo a passo**
-- [ ] Criar `src/server_http.py` usando Flask; definir rota `GET /` que retorne texto/JSON e código HTTP 200.
-- [ ] Definir rota `POST /echo` que receba JSON e devolva uma confirmação; registrar o método recebido no terminal.
+- [x] Criar `src/server_http.py` usando Flask; definir rota `GET /` que retorne texto/JSON e código HTTP 200.
+- [x] Definir rota `POST /echo` que receba JSON e devolva uma confirmação; registrar o método recebido no terminal.
 - [ ] Executar em `host="0.0.0.0"`, `port=80`, com `debug=False`. Não usar HTTPS na demonstração.
 - [ ] Confirmar que B está em LISTEN na porta 80; resolver conflitos com outros serviços ou permissões antes do teste.
 - [ ] Acessar `http://IP_B/` a partir de A e testar a rota POST pelo cliente Python.
-- [ ] Registrar as respostas esperadas (código, corpo e cabeçalhos) no README.
+- [x] Registrar as respostas esperadas (código, corpo e cabeçalhos) no README.
+- [x] Configurar CLI com `--host`/`--port`, padrão 127.0.0.1:8080 e suporte a TCP/80 (configuração testada sem bind em 80).
+- [x] Validar JSON, mídia e limite de 16 KiB com erros 400/415/413 em JSON.
+- [x] Implementar aplicação importável sem rede e testes automatizados com unittest.
 
 **Critérios de aceite**
-- [ ] GET retorna HTTP 200 e POST retorna uma resposta consistente.
+- [x] GET retorna HTTP 200 e POST retorna uma resposta consistente.
 - [ ] A conexão funciona pela rede entre A e B usando TCP/80.
 - [ ] Wireshark decodifica o protocolo como HTTP, sem TLS.
 
 **Evidência esperada:** Terminal do servidor, resposta do cliente e captura com `http.request`.
 
-**Notas / PR / commit:** ______________________________________________
+**Notas / PR / commit:** Código e validação local concluídos em 23/11/2026 (America/Sao_Paulo), Windows, Python 3.12.10, Flask 3.1.3. `python -m unittest discover -s tests -v`: 14 testes aprovados na `.venv`. GET/POST reais em loopback 127.0.0.1:8080 retornaram 200 e os casos de erro retornaram 400/415/413; servidor encerrado ao final. Sintaxe, importações das cinco dependências, `pip check` e `git diff --check` verificados. README documenta instalação, Windows/Linux, CLI, rotas, erros e captura. Nenhum commit/push realizado.
+
+**Status:** Issue #03 parcialmente concluída: implementação pronta; execução real em TCP/80, comunicação A ↔ B, decodificação no Wireshark e revisão pelo grupo permanecem pendentes. Linux não executado. Nenhuma captura, alteração de firewall, implementação DNS/cliente ou modificação do NetProbe realizada.
 
 ---
 

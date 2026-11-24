@@ -19,14 +19,14 @@ flowchart LR
     W["Wireshark — captura na interface de B"] -.->|"Observa pacotes de entrada e saída"| B
 ```
 
-Os endereços e a interface ainda serão definidos na Issue #02. Consulte a [topologia planejada](docs/topologia.md).
+Os endereços e a interface ainda serão definidos e validados nas máquinas do laboratório. Consulte a [topologia planejada](docs/topologia.md) e o [manual de preparação do ambiente — Issue #02](docs/preparacao-ambiente.md), com procedimentos Windows/Linux, diagnóstico local e matriz de validação.
 
 ## Tecnologias
 
 | Tecnologia | Responsabilidade |
 |---|---|
 | Python ≥ 3.11 | Linguagem e ambiente de execução |
-| Flask | Futuro servidor HTTP |
+| Flask | Servidor HTTP GET/POST |
 | requests | Futuras requisições HTTP do cliente |
 | dnslib | Construção e interpretação de mensagens DNS |
 | scapy | Sondagens ICMP, ARP e TCP da ferramenta auxiliar NetProbe |
@@ -40,15 +40,17 @@ Os endereços e a interface ainda serão definidos na Issue #02. Consulte a [top
 Projeto-de-Redes/
 ├── .vscode/settings.json     # configuração preexistente, preservada
 ├── src/
-│   └── .gitkeep              # reserva para os programas das issues #03–#05
+│   ├── __init__.py           # pacote importável
+│   └── server_http.py        # servidor HTTP da Issue #03
 ├── tools/
 │   └── netprobe.py           # ferramenta auxiliar de diagnóstico e inventário
 ├── docs/
 │   ├── topologia.md          # planejamento e campos a preencher na issue #02
+│   ├── preparacao-ambiente.md # configuração e validação manual do laboratório
 │   └── evidencias/
 │       └── .gitkeep          # reserva para evidências futuras
 ├── tests/
-│   └── .gitkeep              # reserva para testes futuros
+│   └── test_server_http.py   # testes HTTP com unittest
 ├── .gitignore               # exclusão de artefatos locais e credenciais
 ├── requirements.txt         # dependências HTTP/DNS e do NetProbe
 ├── README.md                # apresentação e preparação do ambiente
@@ -149,13 +151,172 @@ O NetProbe não implementa captura passiva contínua nem inspeção de payloads 
 
 Essas observações foram registradas para revisão futura, sem alterar o comportamento legado ou ampliar sua capacidade de sondagem.
 
-## Execução futura — ainda não implementada
+## Servidor HTTP — Issue #03
 
-Os três arquivos abaixo **ainda não existem**. Os comandos são previstos para as issues #03, #04 e #05, após sua implementação, configuração e validação. Execute com a `.venv` ativada, a partir da raiz:
+### Instalação
+
+Na raiz, crie a `.venv` somente se ainda não existir e instale as dependências:
+
+```powershell
+# Windows — PowerShell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+```bash
+# Linux
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+### Execução
+
+Desenvolvimento local, com padrão `127.0.0.1:8080`:
+
+```powershell
+# Windows
+.\.venv\Scripts\python.exe src/server_http.py
+```
+
+```bash
+# Linux
+.venv/bin/python src/server_http.py
+```
+
+Laboratório autorizado, na máquina B em TCP/80:
+
+```powershell
+# Windows
+.\.venv\Scripts\python.exe src/server_http.py --host 0.0.0.0 --port 80
+```
+
+```bash
+# Linux, com permissão para bind em TCP/80
+.venv/bin/python src/server_http.py --host 0.0.0.0 --port 80
+```
+
+Com a `.venv` ativada, ambos aceitam:
 
 ```sh
-# Máquina B: terminais separados, após issues #03 e #04
-python src/server_http.py
+python src/server_http.py --host 0.0.0.0 --port 80
+```
+
+Para escutar somente na interface de B, substitua `0.0.0.0` pelo IPv4 real de B.
+`0.0.0.0` escuta em todas as interfaces IPv4; o cliente usa `http://IP_B/`.
+Portas válidas: 1–65535. `python -m src.server_http` também é suportado.
+Encerre com `Ctrl+C`. Porta ocupada ou falta de permissão impede a inicialização;
+consulte o [manual da Issue #02](docs/preparacao-ambiente.md).
+No Linux, TCP/80 pode exigir privilégios/configuração pelo responsável pelo laboratório.
+O programa não modifica o firewall.
+
+O servidor de desenvolvimento Flask deve ser usado somente no laboratório controlado,
+nunca em produção. Executa com `debug=False`, sem recarregamento e sem HTTPS,
+para permitir a inspeção didática do HTTP em texto claro.
+
+### Arquitetura e endpoints
+
+`create_app()` retorna uma aplicação Flask sem iniciar rede na importação.
+`main()` interpreta `--host`/`--port` e inicia o servidor sob a proteção de
+`if __name__ == "__main__"`. Os testes usam o cliente Flask, sem sockets.
+
+| Método | Endpoint | Finalidade |
+|---|---|---|
+| GET | `/` | Consultar o estado do servidor |
+| POST | `/echo` | Enviar JSON e receber confirmação |
+
+GET retorna HTTP 200 com `Content-Type: application/json`:
+
+```json
+{"servico":"http","status":"ok","mensagem":"Servidor HTTP do laboratório de redes ativo"}
+```
+
+POST com `Content-Type: application/json` e corpo `{"mensagem":"Teste de Redes"}`
+retorna HTTP 200, também JSON:
+
+```json
+{"status":"recebido","dados":{"mensagem":"Teste de Redes"}}
+```
+
+Qualquer valor JSON válido é aceito, incluindo listas e `null`; tipos `application/*+json`
+também são reconhecidos pelo Flask. O corpo tem limite de **16 KiB (16.384 bytes)**.
+JSON malformado ou vazio retorna **400**; mídia ausente/inadequada, **415**;
+JSON acima do limite, **413**; rota inexistente, **404**; método não permitido, **405**.
+Os erros HTTP têm formato `{"codigo":400,"erro":"Bad Request"}`, com o código
+correspondente e sem detalhes internos. O erro 405 preserva o cabeçalho `Allow`.
+Flask também oferece HEAD/OPTIONS automaticamente nas rotas aplicáveis.
+`Content-Length` informa o tamanho da resposta.
+
+Os dados são devolvidos sem executar comandos ou gravar arquivos. Os logs registram
+inicialização, endereço/porta e método, caminho e status; omitem corpos e query strings.
+Use caminhos e payloads didáticos sem informações privadas.
+
+### Testes manuais
+
+Com o servidor local em execução, use outro terminal:
+
+```powershell
+# Windows — PowerShell
+Invoke-WebRequest -Uri http://127.0.0.1:8080/ -Method Get
+Invoke-WebRequest -Uri http://127.0.0.1:8080/echo -Method Post -ContentType 'application/json' -Body '{"mensagem":"Teste de Redes","origem":"Cliente A"}'
+```
+
+```bash
+# Linux — curl; -i mostra status e cabeçalhos
+curl -i http://127.0.0.1:8080/
+curl -i http://127.0.0.1:8080/echo -H 'Content-Type: application/json' --data '{"mensagem":"Teste de Redes","origem":"Cliente A"}'
+```
+
+No laboratório, substitua `http://127.0.0.1:8080` por `http://IP_B` com o IPv4 real.
+Esses comandos são exemplos para execução manual; não representam evidência A ↔ B.
+
+### Testes automatizados e validação realizada
+
+Com a `.venv` ativada:
+
+```sh
+python -m unittest discover -s tests -v
+python -m compileall -q src tests
+python -m pip check
+```
+
+Validação local em **23/11/2026 (America/Sao_Paulo)**, Windows, Python 3.12.10,
+Flask 3.1.3: **14 testes aprovados**. Incluem GET, echo de valores JSON, erros,
+limite exato e excedido, logs, importação sem rede e configuração CLI (TCP/80 simulada).
+Teste HTTP real em `127.0.0.1:8080` aprovado para GET/POST 200 e erros 400/415/413;
+o processo foi encerrado após a verificação. Importações das dependências,
+`pip check`, compilação e `git diff --check` também verificados.
+Não foram testados Linux, bind real em TCP/80 ou comunicação entre A e B.
+
+### Captura
+
+A captura real ainda está pendente e **nenhum pacote foi capturado nesta entrega**.
+Após preparar A e B na Issue #02, selecione no Wireshark a interface com visibilidade
+da comunicação, inicie a captura e gere GET/POST de A para `http://IP_B/`.
+Use os filtros de exibição:
+
+```text
+tcp.port == 80
+http
+http.request
+http.response
+```
+
+Em `Internet Protocol Version 4`, observe `Source Address` e `Destination Address`.
+Em `Transmission Control Protocol`, observe `Source Port` e `Destination Port`:
+a requisição vai da porta efêmera de A à porta 80 de B; a resposta inverte os pares.
+Em `Hypertext Transfer Protocol`, identifique `Request Method: GET` ou `POST`,
+o caminho, `Host`, `Content-Type`, corpo JSON e `Status Code: 200` (ou erro).
+`Follow TCP Stream` permite acompanhar requisição e resposta em texto claro.
+Pacotes de handshake/ACK aparecem no filtro TCP sem necessariamente conter HTTP.
+Testes em 8080 usam `tcp.port == 8080` e podem exigir `Decode As… → HTTP`;
+loopback não substitui a demonstração A ↔ B em TCP/80.
+
+## Execução futura — DNS e cliente ainda não implementados
+
+Os dois arquivos abaixo **ainda não existem**. Os comandos são previstos para as issues #04 e #05, após sua implementação, configuração e validação. Execute com a `.venv` ativada, a partir da raiz:
+
+```sh
+# Máquina B: outro terminal, após issue #04
 python src/server_dns.py
 
 # Máquina A: após issue #05 e configuração de IP_B
@@ -192,4 +353,4 @@ Capturas `.pcap` e `.pcapng` são ignoradas por padrão. Para versionar uma evid
 
 ## Estado do desenvolvimento
 
-Esta entrega prepara somente a estrutura inicial da Issue #01. Servidores HTTP/DNS, cliente, testes funcionais e captura ainda serão desenvolvidos. O [checklist do projeto](checklist.md) preserva as 14 issues e registra separadamente o que foi validado localmente e o que depende de publicação/revisão pelo grupo.
+A estrutura da Issue #01 está preservada. A Issue #02 dispõe de manual de preparação, topologia e diagnóstico local; a configuração e a conectividade nas máquinas reais permanecem pendentes. O HTTP da Issue #03 está implementado e validado localmente; TCP/80 entre A e B e captura permanecem pendentes. DNS e cliente ainda serão desenvolvidos. O [checklist do projeto](checklist.md) preserva as 14 issues e registra separadamente o que foi validado localmente e o que depende do laboratório ou de publicação/revisão pelo grupo.
