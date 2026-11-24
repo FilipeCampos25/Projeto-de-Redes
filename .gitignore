@@ -1,0 +1,49 @@
+# Ambientes virtuais
+.venv/
+venv/
+env/
+.env/
+
+# Bytecode, caches e artefatos Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Configurações locais (arquivos já rastreados são preservados)
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Variáveis de ambiente e credenciais locais
+.env
+.env.*
+!.env.example
+credentials*.json
+secrets*.json
+*.pem
+*.key
+
+# Arquivos temporários e resultados de execução
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+tmp/
+logs/
+reports/
+
+# Capturas locais; liberar individualmente evidências aprovadas pelo grupo
+*.pcap
+*.pcapng
+# Exemplo futuro: !docs/evidencias/captura-demo.pcapng

@@ -1,0 +1,6 @@
+# Python >= 3.11. Congelar versões após a validação funcional da aplicação.
+Flask
+requests
+dnslib
+scapy
+tabulate
